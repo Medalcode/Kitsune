@@ -1,15 +1,18 @@
-import asyncio
-from typing import AsyncGenerator, Generator
+from typing import AsyncGenerator
+
 import pytest
-from httpx import AsyncClient, ASGITransport
+from httpx import ASGITransport, AsyncClient
+
+from src.app.db.session import Base, engine
 from src.app.main import app
-from src.app.db.session import engine, Base
+
 
 @pytest.fixture(scope="function")
 async def client() -> AsyncGenerator:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
         yield c
+
 
 @pytest.fixture(scope="function", autouse=True)
 async def setup_db() -> AsyncGenerator:

@@ -1,7 +1,9 @@
 import logging
 import sys
-import structlog
 from typing import Any
+
+import structlog
+
 
 def setup_logging(log_level: str = "INFO", json_logs: bool = False):
     shared_processors: list[Any] = [
@@ -37,7 +39,7 @@ def setup_logging(log_level: str = "INFO", json_logs: bool = False):
         stream=sys.stdout,
         level=log_level.upper(),
     )
-    
+
     # Interceptar logs de librerías
     for _log in ["uvicorn", "uvicorn.error", "uvicorn.access", "fastapi"]:
         logging.getLogger(_log).handlers = []

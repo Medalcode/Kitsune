@@ -9,3 +9,10 @@ test:
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +
+
+lint:
+	./.venv/bin/ruff check .
+
+format:
+	./.venv/bin/ruff check --fix .
+	./.venv/bin/ruff format .

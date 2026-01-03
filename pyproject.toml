@@ -1,0 +1,28 @@
+[tool.ruff]
+# Longitud de línea (mismo estándar que Black)
+line-length = 120
+target-version = "py310"
+
+# Excluir directorios comunes
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+    "alembic/versions"
+]
+
+[tool.ruff.lint]
+# Seleccionar reglas:
+# E: pycodestyle (errores)
+# F: Pyflakes
+# I: isort (ordenar imports)
+# B: flake8-bugbear (errores comunes)
+select = ["E", "F", "I", "B"]
+ignore = ["B008"]
+
+# Configuración de isort dentro de Ruff
+[tool.ruff.lint.isort]
+known-first-party = ["src"]

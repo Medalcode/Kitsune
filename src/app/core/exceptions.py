@@ -2,6 +2,7 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     return JSONResponse(
         status_code=exc.status_code,
@@ -11,6 +12,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
             "message": exc.detail,
         },
     )
+
 
 async def general_exception_handler(request: Request, exc: Exception):
     # In production, log the error here

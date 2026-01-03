@@ -1,18 +1,16 @@
-from typing import Any, List
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
 
-from src.app.db.session import get_db
 from src.app import models, schemas
-from src.app.core.security import get_password_hash
+from src.app.api import deps
+from src.app.db.session import get_db
+from src.app.schemas.common import Page
+from src.app.services.user_service import UserService
 
 router = APIRouter()
 
-from src.app.api import deps
-
-from src.app.schemas.common import Page
-from sqlalchemy import func
 
 @router.get("/", response_model=Page[schemas.User])
 async def read_users(
@@ -25,24 +23,11 @@ async def read_users(
     Retrieve users with pagination.
     """
     skip = (page - 1) * size
-    
-    # Get total count
-    count_query = select(func.count()).select_from(models.User)
-    total_result = await db.execute(count_query)
-    total = total_result.scalar()
-    
-    # Get items
-    query = select(models.User).offset(skip).limit(size)
-    result = await db.execute(query)
-    users = result.scalars().all()
-    
-    return {
-        "items": users,
-        "total": total,
-        "page": page,
-        "size": size,
-        "pages": (total + size - 1) // size
-    }
+    service = UserService(db)
+    items, total = await service.get_multi(skip=skip, limit=size)
+
+    return {"items": items, "total": total, "page": page, "size": size, "pages": (total + size - 1) // size}
+
 
 @router.post("/", response_model=schemas.User)
 async def create_user(
@@ -52,22 +37,13 @@ async def create_user(
     """
     Create new user.
     """
+    service = UserService(db)
+
     # Check if user exists
-    result = await db.execute(select(models.User).filter(models.User.email == user_in.email))
-    existing_user = result.scalars().first()
-    if existing_user:
+    if await service.get_by_email(user_in.email):
         raise HTTPException(
             status_code=400,
             detail="The user with this username already exists in the system.",
         )
-    
-    new_user = models.User(
-        email=user_in.email,
-        full_name=user_in.full_name,
-        hashed_password=get_password_hash(user_in.password),
-        is_active=user_in.is_active
-    )
-    db.add(new_user)
-    await db.commit()
-    await db.refresh(new_user)
-    return new_user
+
+    return await service.create(user_in)
