@@ -25,13 +25,13 @@ A professional, production-ready implementation of a FastAPI application.
 1. **Install Dependencies**:
 
    ```bash
-   pip install -r requirements.txt
+   poetry install
    ```
 
 2. **Run the Application**:
 
    ```bash
-   uvicorn src.app.main:app --reload
+   poetry run uvicorn src.app.main:app --reload
    ```
 
 3. **Explore the API**:

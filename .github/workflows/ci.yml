@@ -28,19 +28,20 @@ jobs:
           python-version: "3.11"
           cache: "pip" # Caching pip dependencies
 
+      - name: Install Poetry
+        run: pip install poetry
+
       - name: Install Dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+        run: poetry install
 
       - name: Linting (Ruff)
         run: |
           # Verifica estilo
-          ruff format --check .
+          poetry run ruff format --check .
           # Verifica errores
-          ruff check .
+          poetry run ruff check .
 
       - name: Run Tests
         run: |
           # Ejecuta los tests con cobertura básica
-          pytest
+          poetry run pytest

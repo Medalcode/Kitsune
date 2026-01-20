@@ -49,7 +49,7 @@ def create_app() -> FastAPI:
         response = await call_next(request)
 
         process_time = time.time() - start_time
-        await logger.info(
+        logger.info(
             "request_processed",
             http_method=request.method,
             url=str(request.url),
