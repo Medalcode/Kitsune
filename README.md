@@ -17,6 +17,7 @@ A professional, production-ready implementation of a FastAPI application.
 >
 > - [Full User Guide](docs/GUIDE.md)
 > - [Development Notes](docs/dev_notes/)
+> - [📔 Bitácora de Cambios](BITACORA.md)
 
 ## Getting Started
 
