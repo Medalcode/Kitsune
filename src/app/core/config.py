@@ -8,7 +8,10 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Kitsune API"
 
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./kitsune.db"
+    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/kitsune"
+    
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
 
     # Security
     SECRET_KEY: str = "CHANGE_THIS_IN_PRODUCTION_TO_A_SECURE_SECRET_KEY"
