@@ -21,19 +21,18 @@ Este template utiliza las mejores prácticas modernas de Python:
 ### 1. Preparar el Entorno
 
 ```bash
-# Crear entorno virtual
-python3 -m venv .venv
-source .venv/bin/activate
+# Instalar Poetry (si no lo tienes)
+pip install poetry
 
 # Instalar dependencias
-pip install -r requirements.txt
+poetry install
 ```
 
 ### 2. Ejecutar la Aplicación
 
 ```bash
 # Inicia el servidor de desarrollo con autoreload
-uvicorn src.app.main:app --reload
+poetry run uvicorn src.app.main:app --reload
 ```
 
 La API estará disponible en `http://localhost:8000`.
@@ -155,5 +154,6 @@ Agrega un archivo en `tests/api/v1/test_productos.py` y usa el `client` asíncro
 ├── tests/                  # Tests automáticos
 ├── Dockerfile              # Configuración de imagen Docker
 ├── docker-compose.yml      # Orquestación de contenedores
-└── requirements.txt        # Dependencias
+├── pyproject.toml          # Dependencias y configuración (Poetry)
+└── poetry.lock             # Versiones exactas de dependencias
 ```

@@ -13,6 +13,11 @@ A professional, production-ready implementation of a FastAPI application.
 - **CORS Configured**: Ready for frontend integration.
 - **Dockerized**: Ready for deployment.
 
+> 📘 **Documentation**:
+>
+> - [Full User Guide](docs/GUIDE.md)
+> - [Development Notes](docs/dev_notes/)
+
 ## Getting Started
 
 ### Prerequisites
