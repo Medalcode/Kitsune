@@ -1,159 +1,546 @@
-# GUÍA DE USO: Template de API Profesional (Kitsune)
+# Implementation Guide
 
-Esta guía detalla cómo utilizar este template "Kitsune" como base para crear nuevas APIs profesionales, seguras y escalables en Python.
-
-## 📋 Stack Tecnológico
-
-Este template utiliza las mejores prácticas modernas de Python:
-
-- **Framework Web**: [FastAPI](https://fastapi.tiangolo.com/) (Alto rendimiento, fácil de usar, validación automática).
-- **Base de Datos**: [SQLAlchemy](https://www.sqlalchemy.org/) en modo **Asíncrono** (Compatible con PostgreSQL, MySQL, SQLite).
-- **Validación de Datos**: [Pydantic V2](https://docs.pydantic.dev/) (Rápido y robusto).
-- **Seguridad**: Autenticación **JWT** (JSON Web Tokens) y hashing de contraseñas con **Bcrypt**.
-- **Observabilidad**: Logging estructurado JSON con [Structlog](https://www.structlog.org/).
-- **Testing**: [Pytest](https://docs.pytest.org/) configurado para pruebas asíncronas.
-- **Infraestructura**: Docker y Docker Compose listos para producción.
+**Practical patterns for extending Kitsune.**
 
 ---
 
-## 🚀 Inicio Rápido (Local)
+## Core Concepts
 
-### 1. Preparar el Entorno
+### Layered Architecture
 
-```bash
-# Instalar Poetry (si no lo tienes)
-pip install poetry
+Kitsune follows a strict layered architecture:
 
-# Instalar dependencias
-poetry install
+```
+HTTP Request
+    ↓
+API Layer (endpoints)      # Handles HTTP, validates input
+    ↓
+Service Layer              # Business logic, orchestration
+    ↓
+Repository Layer           # Data access, queries
+    ↓
+Database
 ```
 
-### 2. Ejecutar la Aplicación
+**Rules**:
 
-```bash
-# Inicia el servidor de desarrollo con autoreload
-poetry run uvicorn src.app.main:app --reload
-```
-
-La API estará disponible en `http://localhost:8000`.
-Documentación Swagger interactiva: `http://localhost:8000/docs`.
+- Endpoints should NOT contain business logic
+- Services should NOT know about HTTP (no `Request`, `Response` objects)
+- Repositories should NOT contain business logic (only queries)
 
 ---
 
-## 🐳 Inicio Rápido (Docker)
+## Adding a New Resource
 
-Para un entorno totalmente aislado y reproducible:
+### 1. Define the Model (Database Schema)
 
-```bash
-# Construir y levantar servicios
-docker-compose up --build
-```
-
----
-
-## 🔑 Características Clave
-
-### 1. Autenticación y Seguridad
-
-El sistema ya incluye un flujo completo de usuarios:
-
-- **Registro**: `POST /api/v1/users/` (Crea usuario y hashea contraseña).
-- **Login**: `POST /api/v1/login/access-token` (Retorna JWT).
-- **Proteger Rutas**: Usa la dependencia `deps.get_current_active_user`.
-  ```python
-  @router.get("/secreto")
-  def ruta_secreta(current_user: User = Depends(deps.get_current_active_user)):
-      return {"msg": f"Hola {current_user.email}"}
-  ```
-
-### 2. Paginación Estándar
-
-Olvídate de reinventar la rueda. Usa el esquema `Page[T]` y devolerás respuestas consistentes:
-
-```json
-{
-  "items": [...],
-  "total": 100,
-  "page": 1,
-  "size": 50,
-  "pages": 2
-}
-```
-
-### 3. Observabilidad (Logging)
-
-Los logs ya no son texto plano difícil de leer. El sistema genera logs estructurados ideales para herramientas como Datadog o CloudWatch.
-
-```json
-{
-  "event": "request_processed",
-  "method": "GET",
-  "url": "/docs",
-  "status": 200,
-  "duration": 0.05
-}
-```
-
----
-
-## 🛠️ Cómo Extender el Template
-
-### Paso 1: Crear Modelo (DB)
-
-En `src/app/models/`, crea tu archivo (ej. `producto.py`):
+**File**: `src/app/models/product.py`
 
 ```python
-from sqlalchemy import Column, String, Integer
+from sqlalchemy import Column, Integer, String, Numeric, DateTime
+from sqlalchemy.sql import func
 from src.app.db.session import Base
 
-class Producto(Base):
-    __tablename__ = "productos"
-    id = Column(Integer, primary_key=True)
-    nombre = Column(String)
+class Product(Base):
+    __tablename__ = "products"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(String(1000))
+    price = Column(Numeric(10, 2), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 ```
 
-_Recuerda importar tu nuevo modelo en `src/app/models/__init__.py` para que Alembic/SQLAlchemy lo detecten._
+**Best Practices**:
 
-### Paso 2: Crear Esquemas (Pydantic)
+- Always add indexes on frequently queried columns
+- Use `server_default` for timestamps (DB-level, not Python)
+- Specify string lengths to avoid unbounded columns
+- Use `Numeric` for money (not `Float`, which has precision issues)
 
-En `src/app/schemas/`, define cómo se ven los datos (ej. `producto.py`):
+**Register the model** in `src/app/models/__init__.py`:
 
 ```python
-from pydantic import BaseModel
+from src.app.models.product import Product
 
-class ProductoBase(BaseModel):
-    nombre: str
-
-class Producto(ProductoBase):
-    id: int
-    class Config:
-        from_attributes = True
+__all__ = ["User", "Product"]
 ```
-
-### Paso 3: Crear Endpoint (Rutas)
-
-En `src/app/api/v1/endpoints/`, crea la lógica (ej. `productos.py`) y regístralo en `router.py`.
-
-### Paso 4: Crear Tests
-
-Agrega un archivo en `tests/api/v1/test_productos.py` y usa el `client` asíncrono pre-configurado.
 
 ---
 
-## 📁 Estructura del Proyecto
+### 2. Create Migration
 
-```text
-├── src/
-│   └── app/
-│       ├── api/            # Controladores y rutas
-│       ├── core/           # Configuración (Logging, Auth, Settings)
-│       ├── db/             # Conexión a Base de Datos
-│       ├── models/         # Modelos ORM (SQLAlchemy)
-│       ├── schemas/        # Esquemas de Datos (Pydantic)
-│       └── main.py         # Punto de entrada
-├── tests/                  # Tests automáticos
-├── Dockerfile              # Configuración de imagen Docker
-├── docker-compose.yml      # Orquestación de contenedores
-├── pyproject.toml          # Dependencias y configuración (Poetry)
-└── poetry.lock             # Versiones exactas de dependencias
+```bash
+# Generate migration
+alembic revision --autogenerate -m "Add products table"
+
+# Review the generated file in alembic/versions/
+# ALWAYS review autogenerated migrations!
+
+# Apply migration
+alembic upgrade head
 ```
+
+**Common Issues**:
+
+- Alembic might not detect renamed columns (manual edit required)
+- Enum changes require manual migration
+- Index names might conflict (specify explicit names)
+
+---
+
+### 3. Define Schemas (API Contracts)
+
+**File**: `src/app/schemas/product.py`
+
+```python
+from decimal import Decimal
+from datetime import datetime
+from pydantic import BaseModel, Field, ConfigDict
+
+class ProductBase(BaseModel):
+    """Shared properties."""
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=1000)
+    price: Decimal = Field(..., gt=0, decimal_places=2)
+
+class ProductCreate(ProductBase):
+    """Properties to receive on creation."""
+    pass
+
+class ProductUpdate(BaseModel):
+    """Properties to receive on update (all optional)."""
+    name: str | None = Field(None, min_length=1, max_length=255)
+    description: str | None = Field(None, max_length=1000)
+    price: Decimal | None = Field(None, gt=0, decimal_places=2)
+
+class Product(ProductBase):
+    """Properties to return to client."""
+    id: int
+    created_at: datetime
+    updated_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
+```
+
+**Design Decisions**:
+
+- **Separate Create/Update schemas**: Update has all optional fields
+- **Base schema**: Shared validation logic
+- **Response schema**: Includes DB-generated fields (id, timestamps)
+- **Field validation**: Use Pydantic's `Field()` for constraints
+
+---
+
+### 4. Implement Repository
+
+**File**: `src/app/repositories/product_repository.py`
+
+```python
+from typing import Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.app.models.product import Product
+from src.app.repositories.base import BaseRepository
+
+class ProductRepository(BaseRepository[Product]):
+    def __init__(self, db: AsyncSession):
+        super().__init__(Product, db)
+
+    async def get_by_name(self, name: str) -> Optional[Product]:
+        """Find product by exact name."""
+        query = select(Product).filter(Product.name == name)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+
+    async def search_by_name(self, search_term: str) -> list[Product]:
+        """Search products by partial name match."""
+        query = select(Product).filter(
+            Product.name.ilike(f"%{search_term}%")
+        ).order_by(Product.name)
+        result = await self.db.execute(query)
+        return result.scalars().all()
+
+    async def get_by_price_range(
+        self, min_price: Decimal, max_price: Decimal
+    ) -> list[Product]:
+        """Get products within price range."""
+        query = select(Product).filter(
+            Product.price >= min_price,
+            Product.price <= max_price
+        ).order_by(Product.price)
+        result = await self.db.execute(query)
+        return result.scalars().all()
+```
+
+**Patterns**:
+
+- Inherit from `BaseRepository` for CRUD operations
+- Add domain-specific queries as methods
+- Return `Optional[T]` for single results, `list[T]` for multiple
+- Use `ilike` for case-insensitive search (PostgreSQL)
+
+---
+
+### 5. Implement Service
+
+**File**: `src/app/services/product_service.py`
+
+```python
+from decimal import Decimal
+from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.app import schemas
+from src.app.models.product import Product
+from src.app.repositories.product_repository import ProductRepository
+
+class ProductService:
+    def __init__(self, db: AsyncSession):
+        self.repository = ProductRepository(db)
+
+    async def create(self, product_in: schemas.ProductCreate) -> Product:
+        """Create a new product."""
+        # Business logic: validate uniqueness
+        existing = await self.repository.get_by_name(product_in.name)
+        if existing:
+            raise ValueError(f"Product with name '{product_in.name}' already exists")
+
+        # Create product
+        product_data = product_in.model_dump()
+        return await self.repository.create(product_data)
+
+    async def update(
+        self, product_id: int, product_in: schemas.ProductUpdate
+    ) -> Optional[Product]:
+        """Update an existing product."""
+        product = await self.repository.get(product_id)
+        if not product:
+            return None
+
+        # Only update provided fields
+        update_data = product_in.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(product, field, value)
+
+        await self.repository.db.commit()
+        await self.repository.db.refresh(product)
+        return product
+
+    async def search(
+        self,
+        name: Optional[str] = None,
+        min_price: Optional[Decimal] = None,
+        max_price: Optional[Decimal] = None
+    ) -> list[Product]:
+        """Search products with filters."""
+        if name:
+            return await self.repository.search_by_name(name)
+        elif min_price is not None and max_price is not None:
+            return await self.repository.get_by_price_range(min_price, max_price)
+        else:
+            return await self.repository.get_all()
+```
+
+**Service Responsibilities**:
+
+- Business logic (validation, calculations)
+- Orchestration (calling multiple repositories)
+- Error handling (raise domain exceptions)
+- Transaction management (commit/rollback)
+
+---
+
+### 6. Create Endpoints
+
+**File**: `src/app/api/v1/endpoints/products.py`
+
+```python
+from typing import Any
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.app import models, schemas
+from src.app.api import deps
+from src.app.db.session import get_db
+from src.app.services.product_service import ProductService
+from src.app.schemas.common import Page
+
+router = APIRouter()
+
+@router.post("/", response_model=schemas.Product, status_code=201)
+async def create_product(
+    product_in: schemas.ProductCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """
+    Create a new product.
+
+    Requires authentication.
+    """
+    service = ProductService(db)
+    try:
+        return await service.create(product_in)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@router.get("/{product_id}", response_model=schemas.Product)
+async def get_product(
+    product_id: int,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """Get product by ID."""
+    service = ProductService(db)
+    product = await service.repository.get(product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+@router.put("/{product_id}", response_model=schemas.Product)
+async def update_product(
+    product_id: int,
+    product_in: schemas.ProductUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: models.User = Depends(deps.get_current_active_user),
+) -> Any:
+    """Update a product."""
+    service = ProductService(db)
+    product = await service.update(product_id, product_in)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+    return product
+
+@router.get("/", response_model=Page[schemas.Product])
+async def list_products(
+    page: int = Query(1, ge=1),
+    size: int = Query(50, ge=1, le=100),
+    name: str | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    List products with pagination and optional filters.
+    """
+    service = ProductService(db)
+    skip = (page - 1) * size
+
+    if name:
+        items = await service.search(name=name)
+        total = len(items)
+        items = items[skip:skip + size]
+    else:
+        items, total = await service.repository.get_all(skip=skip, limit=size), \
+                       await service.repository.count()
+
+    return {
+        "items": items,
+        "total": total,
+        "page": page,
+        "size": size,
+        "pages": (total + size - 1) // size
+    }
+```
+
+**Endpoint Best Practices**:
+
+- Use proper HTTP status codes (201 for creation, 404 for not found)
+- Add docstrings (appear in Swagger docs)
+- Validate query parameters with `Query()`
+- Convert service exceptions to HTTP exceptions
+- Use `Page[T]` for consistent pagination
+
+---
+
+### 7. Register Router
+
+**File**: `src/app/api/v1/router.py`
+
+```python
+from fastapi import APIRouter
+from src.app.api.v1.endpoints import login, users, products
+
+api_router = APIRouter()
+api_router.include_router(login.router, tags=["login"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(products.router, prefix="/products", tags=["products"])
+```
+
+---
+
+## Advanced Patterns
+
+### Eager Loading Relationships
+
+```python
+# In repository
+from sqlalchemy.orm import selectinload
+
+async def get_with_related(self, id: int) -> Optional[Product]:
+    query = select(Product).options(
+        selectinload(Product.category),
+        selectinload(Product.reviews)
+    ).filter(Product.id == id)
+    result = await self.db.execute(query)
+    return result.scalars().first()
+```
+
+### Transactions Across Multiple Repositories
+
+```python
+# In service
+async def create_order_with_items(
+    self, order_in: OrderCreate, items: list[OrderItemCreate]
+) -> Order:
+    # All operations in same transaction
+    order = await self.order_repo.create(order_in.model_dump())
+
+    for item in items:
+        item_data = item.model_dump()
+        item_data["order_id"] = order.id
+        await self.order_item_repo.create(item_data)
+
+    await self.db.commit()  # Commit once at the end
+    return order
+```
+
+### Custom Exceptions
+
+```python
+# src/app/core/exceptions.py
+class ProductNotFoundError(Exception):
+    """Raised when product is not found."""
+    pass
+
+class InsufficientStockError(Exception):
+    """Raised when product stock is insufficient."""
+    pass
+
+# In service
+if not product:
+    raise ProductNotFoundError(f"Product {product_id} not found")
+
+# In endpoint
+try:
+    return await service.purchase(product_id, quantity)
+except ProductNotFoundError as e:
+    raise HTTPException(status_code=404, detail=str(e))
+except InsufficientStockError as e:
+    raise HTTPException(status_code=400, detail=str(e))
+```
+
+---
+
+## Testing Your New Resource
+
+**File**: `tests/integration/api/test_products.py`
+
+```python
+import pytest
+from httpx import AsyncClient
+from decimal import Decimal
+
+@pytest.mark.asyncio
+async def test_create_product(authenticated_client: AsyncClient):
+    """Test product creation."""
+    product_data = {
+        "name": "Test Product",
+        "description": "A test product",
+        "price": "19.99"
+    }
+
+    response = await authenticated_client.post("/api/v1/products/", json=product_data)
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["name"] == product_data["name"]
+    assert Decimal(data["price"]) == Decimal(product_data["price"])
+    assert "id" in data
+
+@pytest.mark.asyncio
+async def test_get_product(client: AsyncClient, db_session):
+    """Test getting a product by ID."""
+    # Create product directly in DB
+    from src.app.models.product import Product
+    product = Product(name="Test", price=Decimal("10.00"))
+    db_session.add(product)
+    await db_session.commit()
+    await db_session.refresh(product)
+
+    response = await client.get(f"/api/v1/products/{product.id}")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == product.id
+```
+
+---
+
+## Common Pitfalls
+
+### ❌ Don't: Put business logic in endpoints
+
+```python
+# BAD
+@router.post("/products/")
+async def create_product(product_in: ProductCreate, db: AsyncSession = Depends(get_db)):
+    # ❌ Business logic in endpoint
+    existing = await db.execute(select(Product).filter(Product.name == product_in.name))
+    if existing.scalars().first():
+        raise HTTPException(400, "Product exists")
+
+    product = Product(**product_in.model_dump())
+    db.add(product)
+    await db.commit()
+    return product
+```
+
+### ✅ Do: Use services
+
+```python
+# GOOD
+@router.post("/products/")
+async def create_product(product_in: ProductCreate, db: AsyncSession = Depends(get_db)):
+    service = ProductService(db)
+    try:
+        return await service.create(product_in)
+    except ValueError as e:
+        raise HTTPException(400, detail=str(e))
+```
+
+---
+
+### ❌ Don't: Use `select()` in services
+
+```python
+# BAD
+class ProductService:
+    async def get_by_name(self, name: str):
+        # ❌ Query in service
+        query = select(Product).filter(Product.name == name)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+```
+
+### ✅ Do: Delegate to repository
+
+```python
+# GOOD
+class ProductService:
+    async def get_by_name(self, name: str):
+        return await self.repository.get_by_name(name)
+```
+
+---
+
+## Next Steps
+
+- Read `docs/ARCHITECTURE.md` for design rationale
+- Check `docs/SECURITY.md` for security best practices
+- See `docs/QUICKREF.md` for common commands
+- Review `BITACORA.md` for technical decisions
+
+---
+
+**Questions?** The code is well-documented. Read it.
