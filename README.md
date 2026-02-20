@@ -163,6 +163,16 @@ REDIS_URL=redis://localhost:6379/0
 
 ## Extending Kitsune
 
+### Agents & Skills
+
+Kitsune soporta patrones de orquestación y capacidades reutilizables documentadas en:
+
+- [Agents (concepto y pautas)](docs/agents.md)
+- [Skills (diseño y mejores prácticas)](docs/skills.md)
+
+Estos documentos explican cuándo extraer lógica a `skills` reutilizables y cómo los `agents` deben orquestar esas capacidades en background o flujos asincrónicos.
+
+
 ### Adding a New Resource
 
 1. **Model** (`src/app/models/product.py`):
