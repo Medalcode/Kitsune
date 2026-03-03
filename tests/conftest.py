@@ -3,7 +3,7 @@ from typing import AsyncGenerator
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from src.app.db.session import Base, engine
+from src.app.database import Base, engine
 from src.app.main import app
 
 

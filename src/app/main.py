@@ -3,32 +3,27 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from src.app.api.v1.router import api_router
-from src.app.core.config import settings
-from src.app.core.exceptions import general_exception_handler, http_exception_handler
+from src.app.api import router as api_router
+from src.app.core import settings, setup_logging, http_exception_handler, general_exception_handler
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Create tables
-    from src.app.core.logging import setup_logging
-
+    # Startup: Setup logging
     setup_logging()
-
-    # En producción usamos Alembic, no create_all
-    # async with engine.begin() as conn:
-    #     await conn.run_sync(Base.metadata.create_all)
     yield
-    # Shutdown: Close connection
-    # Engine is closed automatically by structural changes if needed, but good practice can be added here.
+    # Shutdown logic if needed
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json", lifespan=lifespan)
+    app = FastAPI(
+        title=settings.PROJECT_NAME, 
+        openapi_url=f"{settings.API_V1_STR}/openapi.json", 
+        lifespan=lifespan
+    )
 
     # Set all CORS enabled origins
     import time
-
     import structlog
     from fastapi import Request
     from fastapi.middleware.cors import CORSMiddleware
@@ -72,5 +67,4 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run("src.app.main:app", host="0.0.0.0", port=8000, reload=True)

@@ -104,60 +104,22 @@ class UserService:
 
 ```
 src/app/
-├── api/
-│   ├── deps.py              # Shared dependencies (auth, DB session)
-│   └── v1/
-│       ├── endpoints/       # Route handlers
-│       └── router.py        # API router aggregation
-├── core/
-│   ├── config.py            # Settings (env-based)
-│   ├── security.py          # JWT + password hashing
-│   ├── logging.py           # Structured logging setup
-│   └── exceptions.py        # Global exception handlers
-├── db/
-│   └── session.py           # Async engine + session factory
-├── models/                  # SQLAlchemy ORM models
-├── repositories/            # Data access layer
-│   ├── base.py              # Generic CRUD operations
-│   └── user_repository.py   # User-specific queries
-├── schemas/                 # Pydantic models (validation)
-├── services/                # Business logic layer
-└── main.py                  # FastAPI app factory
+├── main.py        # FastAPI app factory, middleware & routes registration
+├── api.py         # Route handlers, dependencies & business endpoints
+├── logic.py       # Business logic & Data access (Unified CRUD)
+├── core.py        # Settings, Security, Logging & Global exceptions
+├── database.py    # Async engine & Session factory
+├── models.py      # SQLAlchemy ORM models
+├── schemas.py     # Pydantic models (validation)
+└── __init__.py    # Module export
 ```
 
-**Design Principles**:
+**Lean Design Principles**:
 
-- **Layered architecture**: API → Service → Repository → DB
+- **Flat architecture**: Reduced cognitive load (API → Logic → DB)
+- **High logical density**: Fewer files, more meaningful code per module
 - **Dependency injection**: FastAPI's `Depends()` for testability
-- **Separation of concerns**: Models (DB) ≠ Schemas (API)
-- **Async all the way**: No blocking I/O in the request path
-
----
-
-## Configuration
-
-Environment variables (see `.env.example`):
-
-```bash
-# Database
-DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5432/kitsune
-
-# Security (CRITICAL: Change in production)
-SECRET_KEY=your-secret-key-here  # Generate with: openssl rand -hex 32
-ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Redis (optional, for caching/rate limiting)
-REDIS_URL=redis://localhost:6379/0
-```
-
-**Production checklist**:
-
-- [ ] Generate a secure `SECRET_KEY` (32+ characters)
-- [ ] Set `DATABASE_ECHO=false` to disable SQL logging
-- [ ] Configure `BACKEND_CORS_ORIGINS` with your frontend domain
-- [ ] Use a managed PostgreSQL instance (not SQLite)
-- [ ] Enable HTTPS (Kitsune assumes you're behind a reverse proxy)
+- **Unified Logic**: Repository and Service patterns fused for speed and clarity
 
 ---
 
@@ -165,17 +127,16 @@ REDIS_URL=redis://localhost:6379/0
 
 ### Agents & Skills
 
-Kitsune soporta patrones de orquestación y capacidades reutilizables documentadas en:
+Kitsune supports orchestration patterns and reusable capabilities:
 
-- [Agents (concepto y pautas)](docs/agents.md)
-- [Skills (diseño y mejores prácticas)](docs/skills.md)
+- [Agents (concept and guidelines)](docs/agents.md)
+- [Skills (design and best practices)](docs/skills.md)
 
-Estos documentos explican cuándo extraer lógica a `skills` reutilizables y cómo los `agents` deben orquestar esas capacidades en background o flujos asincrónicos.
-
+These documents explain how to orchestrate business logic using the `KitsuneGeneralistAgent` and parametric `Super-Skills`.
 
 ### Adding a New Resource
 
-1. **Model** (`src/app/models/product.py`):
+1. **Model** (`src/app/models.py`):
 
 ```python
 class Product(Base):
@@ -185,7 +146,7 @@ class Product(Base):
     price = Column(Numeric(10, 2))
 ```
 
-2. **Schema** (`src/app/schemas/product.py`):
+2. **Schema** (`src/app/schemas.py`):
 
 ```python
 class ProductCreate(BaseModel):
@@ -197,40 +158,27 @@ class Product(ProductCreate):
     model_config = ConfigDict(from_attributes=True)
 ```
 
-3. **Repository** (`src/app/repositories/product_repository.py`):
+3. **Logic** (`src/app/logic.py`):
 
 ```python
-class ProductRepository(BaseRepository[Product]):
+class ProductLogic:
     def __init__(self, db: AsyncSession):
-        super().__init__(Product, db)
-
-    async def get_by_name(self, name: str) -> Product | None:
-        query = select(Product).filter(Product.name == name)
-        result = await self.db.execute(query)
-        return result.scalars().first()
-```
-
-4. **Service** (`src/app/services/product_service.py`):
-
-```python
-class ProductService:
-    def __init__(self, db: AsyncSession):
-        self.repository = ProductRepository(db)
+        self.crud = CRUD(Product, db)
 
     async def create(self, product_in: ProductCreate) -> Product:
-        return await self.repository.create(product_in.model_dump())
+        return await self.crud.create(product_in.model_dump())
 ```
 
-5. **Endpoint** (`src/app/api/v1/endpoints/products.py`):
+4. **Endpoint** (`src/app/api.py`):
 
 ```python
-@router.post("/", response_model=schemas.Product)
+@router.post("/products/", response_model=schemas.Product)
 async def create_product(
     product_in: schemas.ProductCreate,
     db: AsyncSession = Depends(get_db),
 ):
-    service = ProductService(db)
-    return await service.create(product_in)
+    logic = ProductLogic(db)
+    return await logic.create(product_in)
 ```
 
 6. **Migration**:
